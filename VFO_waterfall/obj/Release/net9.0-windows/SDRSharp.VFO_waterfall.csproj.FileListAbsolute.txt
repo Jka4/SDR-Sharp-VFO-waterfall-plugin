@@ -11,6 +11,7 @@ C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRShar
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\refint\SDRSharp.VFO_waterfall.dll
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.pdb
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\ref\SDRSharp.VFO_waterfall.dll
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.sourcelink.json
 C:\Users\PC\OneDrive\sdrplugins\Release\net9.0-windows\SDRSharp.VFO_waterfall.deps.json
 C:\Users\PC\OneDrive\sdrplugins\Release\net9.0-windows\SDRSharp.VFO_waterfall.dll
 C:\Users\PC\OneDrive\sdrplugins\Release\net9.0-windows\SDRSharp.VFO_waterfall.pdb
@@ -19,6 +20,7 @@ C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRShar
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.csproj.GenerateResource.cache
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.csproj.CoreCompileInputs.cache
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.sourcelink.json
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.C4EA87CE.Up2Date
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\SDRSharp.VFO_waterfall.dll
 C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\Release\net9.0-windows\refint\SDRSharp.VFO_waterfall.dll

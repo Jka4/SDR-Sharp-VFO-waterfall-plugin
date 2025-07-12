@@ -27,11 +27,8 @@ namespace SDRSharp.VFO_waterfall
         private double _sampleRate = 0;
         private int _fftSize = 131072; // Збільшуємо FFT розмір для кращого розширення
         private byte[] _lastSpectrumData;
-        private int _lastVfoBinIndex;
-        private int _lastFilterCenterBinIndex;
-        private double _lastFreqPerBin;
-        private int _lastStartBin;
-        private int _lastEndBin;
+                 private int _lastVfoBinIndex;
+         private int _lastFilterCenterBinIndex;
         private int _correctionBins = 0;
         private int _contrastValue = 50; // Значення контрасту (1-100)
         // UI elements (not added to Controls in Designer)
@@ -89,8 +86,7 @@ namespace SDRSharp.VFO_waterfall
                 contrastTrackBar.Value = _contrastValue;
                 // Отримуємо початкові значення частот
                 UpdateFrequencyInfo();
-                // Додаємо обробник кліків на водоспад
-                waterfallPictureBox.MouseClick += WaterfallPictureBox_MouseClick;
+                                 // Водоспад не клікабельний
                 // Ініціалізуємо лейбл корекції
                 UpdateCorrectionLabel();
             }
@@ -513,13 +509,10 @@ namespace SDRSharp.VFO_waterfall
             
             waterfallPictureBox.Image = _waterfallBitmap;
             
-            // Зберігаємо дані для кліків
-            _lastSpectrumData = spectrumData;
-            _lastVfoBinIndex = vfoBinIndex;
-            _lastFilterCenterBinIndex = filterCenterBinIndex;
-            _lastFreqPerBin = freqPerBin;
-            _lastStartBin = startBin;
-            _lastEndBin = endBin;
+                         // Зберігаємо дані для відображення
+             _lastSpectrumData = spectrumData;
+             _lastVfoBinIndex = vfoBinIndex;
+             _lastFilterCenterBinIndex = filterCenterBinIndex;
             }
             catch 
             {
@@ -918,46 +911,7 @@ namespace SDRSharp.VFO_waterfall
             }
         }
 
-        private void WaterfallPictureBox_MouseClick(object sender, MouseEventArgs e)
-        {
-            try
-            {
-                if (_lastSpectrumData == null || _lastSpectrumData.Length == 0)
-                {
-                    // System.Diagnostics.Trace.WriteLine("No spectrum data available for click");
-                    return;
-                }
-
-                // Розраховуємо частоту на піксель
-                double freqPerPixel = _lastFreqPerBin;
-                if (_lastEndBin > _lastStartBin)
-                {
-                    freqPerPixel = _lastFreqPerBin * (_lastEndBin - _lastStartBin) / waterfallPictureBox.Width;
-                }
-
-                // Розраховуємо частоту в точці кліку
-                double clickOffset = (e.X - waterfallPictureBox.Width / 2.0) * freqPerPixel;
-                long clickFrequency = _currentVFOFrequency + (long)clickOffset;
-
-                // Розраховуємо рівень сигналу в точці кліку
-                double binRatio = (double)e.X / waterfallPictureBox.Width;
-                int binIndex = _lastStartBin + (int)(binRatio * (_lastEndBin - _lastStartBin));
-                byte signalLevel = 0;
-                if (binIndex >= 0 && binIndex < _lastSpectrumData.Length)
-                {
-                    signalLevel = _lastSpectrumData[binIndex];
-                }
-
-                // Показуємо інформацію про точку кліку
-                string clickInfo = $"Click: {clickFrequency / 1000000.0:F3} MHz, Level: {signalLevel}";
-                // System.Diagnostics.Trace.WriteLine(clickInfo);
-                MessageBox.Show(clickInfo, "Frequency Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in WaterfallPictureBox_MouseClick: {ex.Message}");
-            }
-        }
+        
 
         private void centerLeftButton_Click(object sender, EventArgs e)
         {
