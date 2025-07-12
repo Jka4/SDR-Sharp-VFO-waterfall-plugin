@@ -1,11 +1,7 @@
 C:\Users\PC\OneDrive\sdrplugins> dotnet build VFO_waterfall/SDRSharp.VFO_waterfall.csproj -c Release
-Restore complete (0.3s)
-  SDRSharp.VFO_waterfall failed with 6 error(s) (2.2s)
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(498,46): error CS0103: The name 'filterBins' does not exist in the current context
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(505,48): error CS0103: The name 'filterBins' does not exist in the current context
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(513,48): error CS0103: The name 'halfFilterBins' does not exist in the current context
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(514,46): error CS0103: The name 'halfFilterBins' does not exist in the current context
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(522,48): error CS0103: The name 'halfFilterBins' does not exist in the current context
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(523,46): error CS0103: The name 'halfFilterBins' does not exist in the current context
+Restore complete (1.2s)
+  SDRSharp.VFO_waterfall succeeded with 2 warning(s) (0.7s) → Release\net9.0-windows\SDRSharp.VFO_waterfall.dll
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(39,24): warning CS0414: The field 'ControlPanel._minSNR' is assigned but its value is never used
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(40,24): warning CS0414: The field 'ControlPanel._maxSNR' is assigned but its value is never used
 
-Build failed with 6 error(s) in 3.1s
+Build succeeded with 2 warning(s) in 2.4s

@@ -17,27 +17,16 @@ namespace SDRSharp.VFO_waterfall
     {
         private ISharpControl _control;
         private Bitmap _waterfallBitmap;
-        private Random _rand;
-        private float[] _iqBuffer;
-        private readonly object _bufferLock = new object();
-        private int _iqLength;
-        private IQProcessorProxy _iqProxy;
         private long _currentVFOFrequency = 0;
         private long _centerFrequency = 0;
         private double _sampleRate = 0;
         private int _fftSize = 65536; // Збільшуємо FFT розмір для кращої роздільної здатності
-        private byte[] _lastSpectrumData;
-        private int _lastVfoBinIndex;
-        private int _lastFilterCenterBinIndex;
-        private int _correctionBins = 0;
         private int _contrastValue = 100; // Простий слайдер підсилення (100 = нормальне)
         // LogMMSE шумоподавлення
         private double[] _noiseEstimate; // Оцінка шуму
         private double[] _signalEstimate; // Оцінка сигналу
         private double _noiseAlpha = 0.95; // Коефіцієнт адаптації шуму (0.9-0.99)
         private double _signalAlpha = 0.7; // Коефіцієнт адаптації сигналу (0.5-0.9)
-        private double _minSNR = 0.1; // Мінімальне SNR для обробки
-        private double _maxSNR = 10.0; // Максимальне SNR для обробки
         private bool _noiseReductionEnabled = true; // Шумоподавлення завжди увімкнене
         // Буфер для оптимізованих даних спектру
         private byte[] _optimizedSpectrumBuffer;
@@ -45,10 +34,6 @@ namespace SDRSharp.VFO_waterfall
 
         // UI elements (not added to Controls in Designer)
         private System.Windows.Forms.Timer updateTimer;
-        private System.Windows.Forms.Label frequencyLabel;
-        private System.Windows.Forms.Label correctionLabel;
-        private System.Windows.Forms.Button centerLeftButton;
-        private System.Windows.Forms.Button centerRightButton;
 
 
 
@@ -57,8 +42,6 @@ namespace SDRSharp.VFO_waterfall
             try
             {
                 _control = control;
-                _iqProxy = new IQProcessorProxy();
-                _iqProxy.OnIQData += OnIQData;
                 if (_control is INotifyPropertyChanged npc)
                     npc.PropertyChanged += Control_PropertyChanged;
                 InitializeComponent();
@@ -76,28 +59,7 @@ namespace SDRSharp.VFO_waterfall
                 updateTimer.Interval = 11; // ~90 FPS (прискорено в 3 рази)
                 updateTimer.Tick += new System.EventHandler(updateTimer_Tick);
                 
-                frequencyLabel = new System.Windows.Forms.Label();
-                frequencyLabel.AutoSize = true;
-                frequencyLabel.Font = new System.Drawing.Font("Segoe UI", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point);
-                frequencyLabel.ForeColor = System.Drawing.Color.White;
-                frequencyLabel.Text = "VFO: 0.000 MHz | Center: 0.000 MHz | Display: 0 kHz | FFT: 0";
-                
-                correctionLabel = new System.Windows.Forms.Label();
-                correctionLabel.AutoSize = true;
-                correctionLabel.Font = new System.Drawing.Font("Segoe UI", 8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
-                correctionLabel.ForeColor = System.Drawing.Color.Yellow;
-                correctionLabel.Text = "+0";
-                correctionLabel.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
-                
-                centerLeftButton = new System.Windows.Forms.Button();
-                centerLeftButton.Text = "←";
-                centerLeftButton.Size = new System.Drawing.Size(30, 23);
-                centerLeftButton.Click += new System.EventHandler(centerLeftButton_Click);
-                
-                centerRightButton = new System.Windows.Forms.Button();
-                centerRightButton.Text = "→";
-                centerRightButton.Size = new System.Drawing.Size(30, 23);
-                centerRightButton.Click += new System.EventHandler(centerRightButton_Click);
+
                 
 
                 
@@ -105,7 +67,6 @@ namespace SDRSharp.VFO_waterfall
                 
                 updateTimer.Start();
                 _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
-                _rand = new Random();
                 // Налаштовуємо слайдер з більшим діапазоном
                 contrastTrackBar.Minimum = 0;   // 0 = мінімальне підсилення
                 contrastTrackBar.Maximum = 500; // 500 = максимальне підсилення
@@ -120,9 +81,6 @@ namespace SDRSharp.VFO_waterfall
                 
                 // Отримуємо початкові значення частот
                 UpdateFrequencyInfo();
-                // Водоспад не клікабельний
-                // Ініціалізуємо лейбл корекції
-                UpdateCorrectionLabel();
             }
             catch 
             {
@@ -130,11 +88,9 @@ namespace SDRSharp.VFO_waterfall
                 try
                 {
                     if (_control == null) _control = control;
-                    if (_iqProxy == null) _iqProxy = new IQProcessorProxy();
                     InitializeComponent();
                     updateTimer.Start();
                     _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
-                    _rand = new Random();
                 }
                 catch
                 {
@@ -251,8 +207,7 @@ namespace SDRSharp.VFO_waterfall
                 // try { // System.Diagnostics.Trace.WriteLine($"RF Display Bandwidth: {_control.RFDisplayBandwidth}"); } catch { }
                 // try { // System.Diagnostics.Trace.WriteLine($"Tunable Bandwidth: {_control.TunableBandwidth}"); } catch { }
                 
-                // Оновлюємо заголовок вікна з інформацією про частоту
-                UpdateFrequencyDisplay();
+
             }
             catch 
             {
@@ -260,49 +215,7 @@ namespace SDRSharp.VFO_waterfall
             }
         }
 
-        private void UpdateFrequencyDisplay()
-        {
-            if (this.InvokeRequired)
-            {
-                this.Invoke(new Action(UpdateFrequencyDisplay));
-                return;
-            }
-            
-            try
-            {
-                // Перевіряємо, чи SDR# готовий
-                if (_control == null || !_control.IsPlaying)
-                {
-                    frequencyLabel.Text = "SDR# not ready";
-                    return;
-                }
-                
-                // Оновлюємо лейбл з частотою
-                double rfDisplayBandwidth = 0, tunableBandwidth = 0, displayBandwidth = 0;
-                int fftResolution = 0;
-                
-                try { rfDisplayBandwidth = _control.RFDisplayBandwidth; } catch { }
-                try { tunableBandwidth = _control.TunableBandwidth; } catch { }
-                try { displayBandwidth = GetDisplayBandwidth(); } catch { displayBandwidth = 50000; } // 50 kHz за замовчуванням
-                try { fftResolution = _control.FFTResolution; } catch { fftResolution = 0; }
-                
-                double spectrumCoefficient = CalculateSpectrumCoefficient();
-                double spectrumWidth = rfDisplayBandwidth > 0 ? rfDisplayBandwidth : 
-                                      (tunableBandwidth > 0 ? tunableBandwidth : (_sampleRate > 0 ? _sampleRate * spectrumCoefficient : 50000));
-                
-                // Розраховуємо центральну частоту полоси
-                double filterCenterOffset = GetFilterCenterOffset();
-                long filterCenterFrequency = _currentVFOFrequency + (long)filterCenterOffset;
-                
-                string freqText = $"VFO: {_currentVFOFrequency / 1000000.0:F3} MHz | Filter: {filterCenterFrequency / 1000000.0:F3} MHz | Display: {displayBandwidth / 1000.0:F0} kHz | FFT: {fftResolution} | Buffer: {_optimizedBufferSize} | NR: ON | Gain: {(_contrastValue / 100.0):F1}x";
-                frequencyLabel.Text = freqText;
-            }
-            catch 
-            {
-                // // System.Diagnostics.Trace.WriteLine($"Error in UpdateFrequencyDisplay: {ex.Message}");
-                frequencyLabel.Text = "Error updating display";
-            }
-        }
+
 
         private void Control_PropertyChanged(object sender, PropertyChangedEventArgs e)
         {
@@ -310,8 +223,7 @@ namespace SDRSharp.VFO_waterfall
             {
             if (e.PropertyName == "IsPlaying" && _control.IsPlaying)
             {
-                _control.RegisterStreamHook(_iqProxy, ProcessorType.RawIQ);
-                // System.Diagnostics.Trace.WriteLine("StreamHook registered after start");
+                // IQ обробка не використовується в поточній реалізації
                 }
                 else if (e.PropertyName == "Frequency" || e.PropertyName == "CenterFrequency" || e.PropertyName == "FFTResolution")
                 {
@@ -324,23 +236,7 @@ namespace SDRSharp.VFO_waterfall
             }
         }
 
-        private void OnIQData(float[] buffer, int length)
-        {
-            try
-            {
-            lock (_bufferLock)
-            {
-                if (_iqBuffer == null || _iqBuffer.Length < length)
-                    _iqBuffer = new float[length];
-                Array.Copy(buffer, _iqBuffer, length);
-                _iqLength = length;
-                }
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in OnIQData: {ex.Message}");
-            }
-        }
+
 
         private void updateTimer_Tick(object sender, EventArgs e)
         {
@@ -462,8 +358,7 @@ namespace SDRSharp.VFO_waterfall
             int filterCenterBinIndex = (int)(filterCenterOffset_from_center / freqPerBin) + spectrumData.Length / 2;
             filterCenterBinIndex = Math.Max(0, Math.Min(spectrumData.Length - 1, filterCenterBinIndex));
 
-            // Корекція центрування (можна налаштувати через кнопки)
-            filterCenterBinIndex += _correctionBins;
+            // Обмежуємо індекс в межах спектру
             filterCenterBinIndex = Math.Max(0, Math.Min(spectrumData.Length - 1, filterCenterBinIndex));
 
             // Отримуємо тип модуляції один раз
@@ -543,44 +438,39 @@ namespace SDRSharp.VFO_waterfall
             {
                 filterStartBin = vfoBinIndex;
                 filterEndBin = vfoBinIndex + filterBins;
-                // Малюємо ліву межу червоною, праву білою (65% непрозорості)
-                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(166, 255, 0, 0));
-                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(166, 255, 255, 255));
+                // Малюємо ліву межу м'яко-червоною, праву м'яко-білою (30% непрозорості)
+                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(77, 255, 100, 100));
+                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(77, 200, 200, 200));
             }
             else if (modulationType.Contains("LSB"))
             {
                 filterStartBin = vfoBinIndex - filterBins;
                 filterEndBin = vfoBinIndex;
-                // Малюємо ліву межу білою, праву червоною (65% непрозорості)
-                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(166, 255, 255, 255));
-                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(166, 255, 0, 0));
+                // Малюємо ліву межу м'яко-білою, праву м'яко-червоною (30% непрозорості)
+                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(77, 200, 200, 200));
+                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(77, 255, 100, 100));
             }
             else if (modulationType.Contains("CW"))
             {
                 filterStartBin = vfoBinIndex - halfFilterBins;
                 filterEndBin = vfoBinIndex + halfFilterBins;
-                // Обидві межі червоні (65% непрозорості)
-                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(166, 255, 0, 0));
-                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(166, 255, 0, 0));
+                // Обидві межі м'яко-червоні (30% непрозорості)
+                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(77, 255, 100, 100));
+                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(77, 255, 100, 100));
             }
             else
             {
-                // Для всіх інших модуляцій (AM, FM, тощо) малюємо центральну лінію VFO червоною, а межі фільтра — білі (65% непрозорості)
+                // Для всіх інших модуляцій (AM, FM, тощо) малюємо центральну лінію VFO м'яко-червоною, а межі фільтра — м'яко-білі (30% непрозорості)
                 filterStartBin = vfoBinIndex - halfFilterBins;
                 filterEndBin = vfoBinIndex + halfFilterBins;
-                // Бокові межі — білі
-                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(166, 255, 255, 255));
-                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(166, 255, 255, 255));
-                // Центральна лінія — червона
-                DrawSingleEdgeLine(width, height, vfoBinIndex, startBin, endBin, Color.FromArgb(166, 255, 0, 0));
+                // Бокові межі — м'яко-білі
+                DrawSingleEdgeLine(width, height, filterStartBin, startBin, endBin, Color.FromArgb(77, 200, 200, 200));
+                DrawSingleEdgeLine(width, height, filterEndBin, startBin, endBin, Color.FromArgb(77, 200, 200, 200));
+                // Центральна лінія — м'яко-червона
+                DrawSingleEdgeLine(width, height, vfoBinIndex, startBin, endBin, Color.FromArgb(77, 255, 100, 100));
             }
             
             waterfallPictureBox.Image = _waterfallBitmap;
-            
-                         // Зберігаємо дані для відображення
-             _lastSpectrumData = spectrumData;
-             _lastVfoBinIndex = vfoBinIndex;
-             _lastFilterCenterBinIndex = filterCenterBinIndex;
             }
             catch 
             {
@@ -588,11 +478,7 @@ namespace SDRSharp.VFO_waterfall
             }
         }
 
-        private int GetDisplayCenterBinIndex(int vfoBinIndex, int filterCenterBinIndex, double filterBandwidth, double freqPerBin)
-        {
-            // Завжди центруємо на VFO для всіх типів модуляції
-            return vfoBinIndex;
-        }
+
 
         private string GetModulationType()
         {
@@ -749,130 +635,7 @@ namespace SDRSharp.VFO_waterfall
 
 
 
-        private void DrawBandwidthLines(int width, int height, int filterStartBin, int filterEndBin, int displayStartBin, int displayEndBin)
-        {
-            try
-            {
-                // Розраховуємо x координати лівих і правих країв фільтра в межах відображуваного діапазону
-                double leftRatio = (displayEndBin - displayStartBin) > 0 ? 
-                    (double)(filterStartBin - displayStartBin) / (displayEndBin - displayStartBin) : 0.0;
-                double rightRatio = (displayEndBin - displayStartBin) > 0 ? 
-                    (double)(filterEndBin - displayStartBin) / (displayEndBin - displayStartBin) : 1.0;
-                
-                int leftX = (int)(leftRatio * width);
-                int rightX = (int)(rightRatio * width);
-                
-                // Обмежуємо координати в межах ширини
-                leftX = Math.Max(0, Math.Min(width - 1, leftX));
-                rightX = Math.Max(0, Math.Min(width - 1, rightX));
-                
-                // System.Diagnostics.Trace.WriteLine($"Filter Lines: Filter {filterStartBin}-{filterEndBin}, Display {displayStartBin}-{displayEndBin}, Left X {leftX}, Right X {rightX}");
-                
-                // Малюємо вертикальні червоні лінії по краях фільтра
-                using (Graphics g = Graphics.FromImage(_waterfallBitmap))
-                {
-                    using (Pen redPen = new Pen(Color.Red, 2))
-                    {
-                        g.DrawLine(redPen, leftX, 0, leftX, height);
-                        g.DrawLine(redPen, rightX, 0, rightX, height);
-                    }
-                }
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in DrawBandwidthLines: {ex.Message}");
-            }
-        }
 
-        private void DrawVFOLine(int width, int height, int vfoBinIndex, int displayStartBin, int displayEndBin)
-        {
-            try
-            {
-                // Розраховуємо x координату VFO в межах відображуваного діапазону
-                double vfoRatio = (displayEndBin - displayStartBin) > 0 ? 
-                    (double)(vfoBinIndex - displayStartBin) / (displayEndBin - displayStartBin) : 0.5;
-                
-                int vfoX = (int)(vfoRatio * width);
-                
-                // Обмежуємо координату в межах ширини
-                vfoX = Math.Max(0, Math.Min(width - 1, vfoX));
-                
-                // System.Diagnostics.Trace.WriteLine($"VFO Line: VFO Bin {vfoBinIndex}, Display {displayStartBin}-{displayEndBin}, VFO X {vfoX}");
-                
-                // Малюємо вертикальну білу лінію для VFO частоти
-                using (Graphics g = Graphics.FromImage(_waterfallBitmap))
-                {
-                    using (Pen whitePen = new Pen(Color.White, 1))
-                    {
-                        g.DrawLine(whitePen, vfoX, 0, vfoX, height);
-                    }
-                }
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in DrawVFOLine: {ex.Message}");
-            }
-        }
-
-        private void DrawLeftEdgeLine(int width, int height, int filterStartBin, int displayStartBin, int displayEndBin)
-        {
-            try
-            {
-                // Розраховуємо x координату лівої межі фільтра в межах відображуваного діапазону
-                double leftEdgeRatio = (displayEndBin - displayStartBin) > 0 ? 
-                    (double)(filterStartBin - displayStartBin) / (displayEndBin - displayStartBin) : 0.0;
-                
-                int leftEdgeX = (int)(leftEdgeRatio * width);
-                
-                // Обмежуємо координату в межах ширини
-                leftEdgeX = Math.Max(0, Math.Min(width - 1, leftEdgeX));
-                
-                // System.Diagnostics.Trace.WriteLine($"Left Edge Line: Filter Start Bin {filterStartBin}, Display {displayStartBin}-{displayEndBin}, Left Edge X {leftEdgeX}");
-                
-                // Малюємо вертикальну білу лінію для лівої межі фільтра
-                using (Graphics g = Graphics.FromImage(_waterfallBitmap))
-                {
-                    using (Pen whitePen = new Pen(Color.White, 1))
-                    {
-                        g.DrawLine(whitePen, leftEdgeX, 0, leftEdgeX, height);
-                    }
-                }
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in DrawLeftEdgeLine: {ex.Message}");
-            }
-        }
-
-        private void DrawRightEdgeLine(int width, int height, int filterEndBin, int displayStartBin, int displayEndBin)
-        {
-            try
-            {
-                // Розраховуємо x координату правої межі фільтра в межах відображуваного діапазону
-                double rightEdgeRatio = (displayEndBin - displayStartBin) > 0 ? 
-                    (double)(filterEndBin - displayStartBin) / (displayEndBin - displayStartBin) : 1.0;
-                
-                int rightEdgeX = (int)(rightEdgeRatio * width);
-                
-                // Обмежуємо координату в межах ширини
-                rightEdgeX = Math.Max(0, Math.Min(width - 1, rightEdgeX));
-                
-                // System.Diagnostics.Trace.WriteLine($"Right Edge Line: Filter End Bin {filterEndBin}, Display {displayStartBin}-{displayEndBin}, Right Edge X {rightEdgeX}");
-                
-                // Малюємо вертикальну білу лінію для правої межі фільтра
-                using (Graphics g = Graphics.FromImage(_waterfallBitmap))
-                {
-                    using (Pen whitePen = new Pen(Color.White, 1))
-                    {
-                        g.DrawLine(whitePen, rightEdgeX, 0, rightEdgeX, height);
-                    }
-                }
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in DrawRightEdgeLine: {ex.Message}");
-            }
-        }
 
         private Color GetSpectrumColor(byte value, bool isVFO)
         {
@@ -925,93 +688,11 @@ namespace SDRSharp.VFO_waterfall
 
 
 
-        private void someButton_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                double rfDisplayBandwidth = 0, tunableBandwidth = 0, filterBandwidth = 0;
-                int fftResolution = 0;
-                string sourceName = "Unknown";
-                
-                try { rfDisplayBandwidth = _control.RFDisplayBandwidth; } catch { }
-                try { tunableBandwidth = _control.TunableBandwidth; } catch { }
-                try { filterBandwidth = _control.FilterBandwidth; } catch { }
-                try { fftResolution = _control.FFTResolution; } catch { }
-                try { sourceName = _control.SourceName ?? "Unknown"; } catch { }
-                
-                double spectrumCoefficient = CalculateSpectrumCoefficient();
-                double spectrumWidth = rfDisplayBandwidth > 0 ? rfDisplayBandwidth : 
-                                      (tunableBandwidth > 0 ? tunableBandwidth : (_sampleRate > 0 ? _sampleRate * 0.8 : 50000));
-                double displayBandwidth = GetDisplayBandwidth();
-            
-            string info = $"VFO Frequency: {_currentVFOFrequency / 1000000.0:F3} MHz\n" +
-                         $"Center Frequency: {_centerFrequency / 1000000.0:F3} MHz\n" +
-                         $"Sample Rate: {_sampleRate / 1000000.0:F1} MHz\n" +
-                         $"Source: {sourceName}\n" +
-                         $"FFT Resolution: {fftResolution} (Size: {_fftSize})\n" +
-                         $"Filter Bandwidth: {filterBandwidth / 1000.0:F0} kHz\n" +
-                         $"Display Bandwidth: {displayBandwidth / 1000.0:F0} kHz\n" +
-                         $"Spectrum Coefficient: {spectrumCoefficient:F3}\n" +
-                         $"RF Display Bandwidth: {rfDisplayBandwidth / 1000.0:F0} kHz\n" +
-                         $"Tunable Bandwidth: {tunableBandwidth / 1000.0:F0} kHz\n" +
-                         $"Calculated Spectrum Width: {spectrumWidth / 1000.0:F0} kHz";
-            MessageBox.Show(info, "Frequency Information", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            }
-            catch (Exception ex)
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in someButton_Click: {ex.Message}");
-                MessageBox.Show($"Error getting frequency information: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
+
 
         
 
-        private void centerLeftButton_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                _correctionBins--;
-                UpdateCorrectionLabel();
-                // System.Diagnostics.Trace.WriteLine($"Center correction: {_correctionBins}");
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in centerLeftButton_Click: {ex.Message}");
-            }
-        }
 
-        private void centerRightButton_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                _correctionBins++;
-                UpdateCorrectionLabel();
-                // System.Diagnostics.Trace.WriteLine($"Center correction: {_correctionBins}");
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in centerRightButton_Click: {ex.Message}");
-            }
-        }
-
-        private void UpdateCorrectionLabel()
-        {
-            try
-            {
-                if (this.InvokeRequired)
-                {
-                    this.Invoke(new Action(UpdateCorrectionLabel));
-                    return;
-                }
-
-                string sign = _correctionBins >= 0 ? "+" : "";
-                correctionLabel.Text = $"{sign}{_correctionBins}";
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in UpdateCorrectionLabel: {ex.Message}");
-            }
-        }
 
         // Додаю новий метод для малювання однієї вертикальної лінії потрібного кольору
         private void DrawSingleEdgeLine(int width, int height, int bin, int displayStartBin, int displayEndBin, Color color, int thickness = 1)
@@ -1020,9 +701,12 @@ namespace SDRSharp.VFO_waterfall
             int x = (int)(ratio * width);
             x = Math.Max(0, Math.Min(width - 1, x));
             using (Graphics g = Graphics.FromImage(_waterfallBitmap))
-            using (Pen pen = new Pen(color, thickness))
             {
-                g.DrawLine(pen, x, 0, x, height);
+                // Використовуємо більш тонку лінію (0.5 пікселя) для меншої нав'язливості
+                using (Pen pen = new Pen(color, 0.5f))
+                {
+                    g.DrawLine(pen, x, 0, x, height);
+                }
             }
         }
 
