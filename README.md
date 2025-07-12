@@ -1,0 +1,8 @@
+# SDR# VFO Waterfall plugin
+
+Ready to use plugin in: `Release/net9.0-windows/SDRSharp.VFO_waterfall.dll`
+
+Build by themself: `dotnet build VFO_waterfall/SDRSharp.VFO_waterfall.csproj -c Release`
+
+[image: https://github.com/Jka4/SDR-VFO-waterfall/blob/master/interface.png?raw=true]
+# SDR-Sharp-VFO-waterfall-plugin
