@@ -1,0 +1,5 @@
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\bin\plugins\net9.0-windows\SDRSharp.VFO_waterfall.csproj.AssemblyReference.cache
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\bin\plugins\net9.0-windows\SDRSharp.VFO_waterfall.ControlPanel.resources
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\bin\plugins\net9.0-windows\SDRSharp.VFO_waterfall.csproj.GenerateResource.cache
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\bin\plugins\net9.0-windows\SDRSharp.VFO_waterfall.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\obj\bin\plugins\net9.0-windows\SDRSharp.VFO_waterfall.csproj.CoreCompileInputs.cache
