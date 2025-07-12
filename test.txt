@@ -1,7 +1,0 @@
-C:\Users\PC\OneDrive\sdrplugins> dotnet build VFO_waterfall/SDRSharp.VFO_waterfall.csproj -c Release
-Restore complete (1.2s)
-  SDRSharp.VFO_waterfall succeeded with 2 warning(s) (0.7s) → Release\net9.0-windows\SDRSharp.VFO_waterfall.dll
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(39,24): warning CS0414: The field 'ControlPanel._minSNR' is assigned but its value is never used
-    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(40,24): warning CS0414: The field 'ControlPanel._maxSNR' is assigned but its value is never used
-
-Build succeeded with 2 warning(s) in 2.4s
