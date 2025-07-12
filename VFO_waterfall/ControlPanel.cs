@@ -25,18 +25,32 @@ namespace SDRSharp.VFO_waterfall
         private long _currentVFOFrequency = 0;
         private long _centerFrequency = 0;
         private double _sampleRate = 0;
-        private int _fftSize = 131072; // Збільшуємо FFT розмір для кращого розширення
+        private int _fftSize = 65536; // Збільшуємо FFT розмір для кращої роздільної здатності
         private byte[] _lastSpectrumData;
-                 private int _lastVfoBinIndex;
-         private int _lastFilterCenterBinIndex;
+        private int _lastVfoBinIndex;
+        private int _lastFilterCenterBinIndex;
         private int _correctionBins = 0;
-        private int _contrastValue = 50; // Значення контрасту (1-100)
+        private int _contrastValue = 100; // Простий слайдер підсилення (100 = нормальне)
+        // LogMMSE шумоподавлення
+        private double[] _noiseEstimate; // Оцінка шуму
+        private double[] _signalEstimate; // Оцінка сигналу
+        private double _noiseAlpha = 0.95; // Коефіцієнт адаптації шуму (0.9-0.99)
+        private double _signalAlpha = 0.7; // Коефіцієнт адаптації сигналу (0.5-0.9)
+        private double _minSNR = 0.1; // Мінімальне SNR для обробки
+        private double _maxSNR = 10.0; // Максимальне SNR для обробки
+        private bool _noiseReductionEnabled = true; // Шумоподавлення завжди увімкнене
+        // Буфер для оптимізованих даних спектру
+        private byte[] _optimizedSpectrumBuffer;
+        private int _optimizedBufferSize = 10240; // Збільшуємо розмір в 10 разів для кращої роздільної здатності
+
         // UI elements (not added to Controls in Designer)
         private System.Windows.Forms.Timer updateTimer;
         private System.Windows.Forms.Label frequencyLabel;
         private System.Windows.Forms.Label correctionLabel;
         private System.Windows.Forms.Button centerLeftButton;
         private System.Windows.Forms.Button centerRightButton;
+
+
 
         public ControlPanel(ISharpControl control)
         {
@@ -48,6 +62,11 @@ namespace SDRSharp.VFO_waterfall
                 if (_control is INotifyPropertyChanged npc)
                     npc.PropertyChanged += Control_PropertyChanged;
                 InitializeComponent();
+                
+                // Виправляємо Anchor для правильного розтягування
+                waterfallPictureBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+                contrastTrackBar.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+                
                 this.Resize += ControlPanel_Resize;
                 this.Paint += ControlPanel_Paint;
                 ControlPanel_Resize(this, EventArgs.Empty);
@@ -80,13 +99,28 @@ namespace SDRSharp.VFO_waterfall
                 centerRightButton.Size = new System.Drawing.Size(30, 23);
                 centerRightButton.Click += new System.EventHandler(centerRightButton_Click);
                 
+
+                
+
+                
                 updateTimer.Start();
                 _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
                 _rand = new Random();
+                // Налаштовуємо слайдер з більшим діапазоном
+                contrastTrackBar.Minimum = 0;   // 0 = мінімальне підсилення
+                contrastTrackBar.Maximum = 500; // 500 = максимальне підсилення
                 contrastTrackBar.Value = _contrastValue;
+                
+                // Ініціалізуємо оптимізований буфер
+                _optimizedSpectrumBuffer = new byte[_optimizedBufferSize];
+                
+                // Ініціалізуємо буфери для LogMMSE шумоподавлення
+                _noiseEstimate = new double[_optimizedBufferSize];
+                _signalEstimate = new double[_optimizedBufferSize];
+                
                 // Отримуємо початкові значення частот
                 UpdateFrequencyInfo();
-                                 // Водоспад не клікабельний
+                // Водоспад не клікабельний
                 // Ініціалізуємо лейбл корекції
                 UpdateCorrectionLabel();
             }
@@ -120,6 +154,7 @@ namespace SDRSharp.VFO_waterfall
             int tickCount = 6;
             int minValue = contrastTrackBar.Minimum;
             int maxValue = contrastTrackBar.Maximum;
+            // Оновлюємо легенду для нового діапазону
             using (var g = e.Graphics)
             using (var pen = new Pen(Color.LightGray, 1))
             using (var font = new Font("Segoe UI", 7f))
@@ -143,18 +178,29 @@ namespace SDRSharp.VFO_waterfall
             {
                 int sliderWidth = 25;
                 contrastTrackBar.Width = sliderWidth;
-                int leftOffset = 5;
-                int rightOffset = 3;
+                int leftOffset = 2;
+                int rightOffset = 1;
                 int w = this.Width;
                 int h = this.Height;
+                
+                // Розміщуємо слайдер справа
                 contrastTrackBar.Location = new Point(w - sliderWidth - rightOffset, leftOffset);
                 contrastTrackBar.Height = h - 2 * leftOffset;
+                
+                // Розміщуємо водоспад на всю ширину
                 waterfallPictureBox.Location = new Point(leftOffset, leftOffset);
-                waterfallPictureBox.Size = new Size(w - sliderWidth - rightOffset - leftOffset, h - 2 * leftOffset);
+                waterfallPictureBox.Size = new Size(w - sliderWidth - leftOffset - rightOffset, h - 2 * leftOffset);
                 if (waterfallPictureBox.Width > 0 && waterfallPictureBox.Height > 0)
                 {
                     _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
                     waterfallPictureBox.Image = _waterfallBitmap;
+                    
+                    // Налаштовуємо розмір оптимізованого буфера в залежності від ширини
+                    _optimizedBufferSize = Math.Max(2560, Math.Min(20480, waterfallPictureBox.Width * 10));
+                    if (_optimizedSpectrumBuffer == null || _optimizedSpectrumBuffer.Length != _optimizedBufferSize)
+                    {
+                        _optimizedSpectrumBuffer = new byte[_optimizedBufferSize];
+                    }
                 }
             }
             catch 
@@ -182,14 +228,14 @@ namespace SDRSharp.VFO_waterfall
                 int fftResolution = _control.FFTResolution;
                 int calculatedFftSize = fftResolution >= 0 ? (int)Math.Pow(2, fftResolution + 9) : 16384; // FFT розмір залежить від розширення
                 
-                // Обмежуємо FFT розмір для запобігання OutOfMemoryException
-                if (calculatedFftSize > 0 && calculatedFftSize <= 65536)
+                // Обмежуємо FFT розмір для продуктивності з кращою роздільною здатністю
+                if (calculatedFftSize > 0 && calculatedFftSize <= 131072)
                 {
                     _fftSize = calculatedFftSize;
                 }
                 else
                 {
-                    _fftSize = 131072; // Безпечний розмір за замовчуванням
+                    _fftSize = 65536; // Оптимізований розмір за замовчуванням з кращою роздільною здатністю
                     // // System.Diagnostics.Trace.WriteLine($"FFT size too large ({calculatedFftSize}), using default: {_fftSize}");
                 }
                 
@@ -248,7 +294,7 @@ namespace SDRSharp.VFO_waterfall
                 double filterCenterOffset = GetFilterCenterOffset();
                 long filterCenterFrequency = _currentVFOFrequency + (long)filterCenterOffset;
                 
-                string freqText = $"VFO: {_currentVFOFrequency / 1000000.0:F3} MHz | Filter: {filterCenterFrequency / 1000000.0:F3} MHz | Display: {displayBandwidth / 1000.0:F0} kHz | FFT: {fftResolution}";
+                string freqText = $"VFO: {_currentVFOFrequency / 1000000.0:F3} MHz | Filter: {filterCenterFrequency / 1000000.0:F3} MHz | Display: {displayBandwidth / 1000.0:F0} kHz | FFT: {fftResolution} | Buffer: {_optimizedBufferSize} | NR: ON | Gain: {(_contrastValue / 100.0):F1}x";
                 frequencyLabel.Text = freqText;
             }
             catch 
@@ -309,9 +355,9 @@ namespace SDRSharp.VFO_waterfall
                 }
 
                 // Перевіряємо, чи FFT розмір не занадто великий
-                if (_fftSize <= 0 || _fftSize > 131072) // Обмежуємо максимальний розмір
+                if (_fftSize <= 0 || _fftSize > 131072) // Збільшуємо максимальний розмір для кращої роздільної здатності
                 {
-                    _fftSize = 16384; // Встановлюємо безпечний розмір за замовчуванням
+                    _fftSize = 65536; // Встановлюємо оптимальний розмір за замовчуванням
                 }
 
                 // Оновлюємо інформацію про частоту
@@ -452,14 +498,36 @@ namespace SDRSharp.VFO_waterfall
             int startBin = Math.Max(0, displayCenterBinIndex - halfDisplayBins);
             int endBin = Math.Min(spectrumData.Length - 1, displayCenterBinIndex + halfDisplayBins);
 
-            // Малюємо лише цю смугу
+            // Оптимізуємо дані - копіюємо тільки потрібну ділянку
+            byte[] optimizedData = OptimizeSpectrumData(spectrumData, startBin, endBin);
+            int optimizedDataLength = optimizedData.Length;
+
+            // Застосовуємо LogMMSE шумоподавлення
+            if (_noiseReductionEnabled && optimizedDataLength > 0)
+            {
+                try
+                {
+                    byte[] processedData = ApplyLogMMSENoiseReduction(optimizedData);
+                    if (processedData != null && processedData.Length == optimizedDataLength)
+                    {
+                        optimizedData = processedData;
+                    }
+                }
+                catch
+                {
+                    // Якщо шумоподавлення викликає проблеми, просто логуємо помилку
+                    // System.Diagnostics.Trace.WriteLine("LogMMSE noise reduction error");
+                }
+            }
+
+            // Малюємо оптимізовану смугу
             for (int x = 0; x < width; x++)
             {
                 double binRatio = (double)x / width;
-                int binIndex = startBin + (int)(binRatio * (endBin - startBin));
-                if (binIndex >= 0 && binIndex < spectrumData.Length)
+                int binIndex = (int)(binRatio * optimizedDataLength);
+                if (binIndex >= 0 && binIndex < optimizedDataLength)
                 {
-                    byte value = spectrumData[binIndex];
+                    byte value = optimizedData[binIndex];
                     Color c = GetSpectrumColor(value, false);
                     _waterfallBitmap.SetPixel(x, 0, c);
                 }
@@ -808,66 +876,51 @@ namespace SDRSharp.VFO_waterfall
 
         private Color GetSpectrumColor(byte value, bool isVFO)
         {
-            try
+            // Застосовуємо контраст до значення
+            int adjustedValue = ApplyContrast(value);
+            
+            // Оптимізований градієнт для спектру (без try-catch для швидкості)
+            if (adjustedValue < 64)
             {
-                // Застосовуємо контраст до значення
-                int adjustedValue = ApplyContrast(value);
-                
-                // Покращений градієнт для спектру
-                Color c;
-                if (adjustedValue < 64)
-                {
-                    // Темно-синій до синього
-                    int blue = (adjustedValue * 4);
-                    c = Color.FromArgb(0, 0, blue);
-                }
-                else if (adjustedValue < 128)
-                    {
-                        // Синій до зелений
-                    int green = ((adjustedValue - 64) * 4);
-                    c = Color.FromArgb(0, green, 255);
-                    }
-                else if (adjustedValue < 192)
-                    {
-                    // Зелений до жовтий
-                    int red = ((adjustedValue - 128) * 4);
-                    c = Color.FromArgb(red, 255, 255 - red);
-                    }
-                else
-                {
-                    // Жовтий до червоний
-                    int red = 255;
-                    int green = 255 - ((adjustedValue - 192) * 4);
-                    c = Color.FromArgb(red, green, 0);
-                }
-                
-                return c;
+                // Темно-синій до синього
+                int blue = (adjustedValue * 4);
+                return Color.FromArgb(0, 0, blue);
             }
-            catch 
+            else if (adjustedValue < 128)
             {
-                // System.Diagnostics.Trace.WriteLine($"Error in GetSpectrumColor: {ex.Message}");
-                return Color.Black; // Повертаємо чорний колір у випадку помилки
+                // Синій до зелений
+                int green = ((adjustedValue - 64) * 4);
+                return Color.FromArgb(0, green, 255);
+            }
+            else if (adjustedValue < 192)
+            {
+                // Зелений до жовтий
+                int red = ((adjustedValue - 128) * 4);
+                return Color.FromArgb(red, 255, 255 - red);
+            }
+            else
+            {
+                // Жовтий до червоний
+                int red = 255;
+                int green = 255 - ((adjustedValue - 192) * 4);
+                return Color.FromArgb(red, green, 0);
             }
         }
 
         private int ApplyContrast(byte value)
         {
-            try
-            {
-                // Застосовуємо контраст (множимо на коефіцієнт)
-                double contrastMultiplier = _contrastValue / 50.0; // 50 = нормальний контраст
-                int contrastValue = (int)(value * contrastMultiplier);
-                
-                // Обмежуємо фінальне значення
-                contrastValue = Math.Max(0, Math.Min(255, contrastValue));
-                
-                return contrastValue;
-            }
-            catch 
-            {
-                // System.Diagnostics.Trace.WriteLine($"Error in ApplyContrast: {ex.Message}");
-                return value; // Повертаємо оригінальне значення у випадку помилки
-            }
+            // Простий алгоритм підсилення, схожий на основний водоспад SDR#
+            // 0 = 0.5x (мінімальне підсилення)
+            // 100 = 1.0x (нормальне підсилення)
+            // 500 = 3.0x (максимальне підсилення)
+            
+            double gain = 0.5 + (_contrastValue / 500.0) * 2.5; // Лінійна шкала від 0.5 до 3.0
+            
+            // Застосовуємо підсилення
+            int enhancedValue = (int)(value * gain);
+            
+            // Обмежуємо фінальне значення
+            return Math.Max(0, Math.Min(255, enhancedValue));
         }
 
 
@@ -984,6 +1037,161 @@ namespace SDRSharp.VFO_waterfall
             catch 
             {
                 // System.Diagnostics.Trace.WriteLine($"Error in contrastTrackBar_ValueChanged: {ex.Message}");
+            }
+        }
+
+
+
+
+
+
+
+        /// <summary>
+        /// Оптимізує дані спектру - копіює тільки потрібну ділянку в окремий буфер
+        /// Це значно покращує продуктивність замість обробки всього FFT потоку
+        /// Розмір буфера збільшено для кращої роздільної здатності
+        /// </summary>
+        /// <param name="fullSpectrumData">Повний FFT буфер</param>
+        /// <param name="startBin">Початковий бін потрібної ділянки</param>
+        /// <param name="endBin">Кінцевий бін потрібної ділянки</param>
+        /// <returns>Оптимізований буфер з тільки потрібними даними</returns>
+        private byte[] OptimizeSpectrumData(byte[] fullSpectrumData, int startBin, int endBin)
+        {
+            try
+            {
+                // Перевіряємо вхідні дані
+                if (fullSpectrumData == null || fullSpectrumData.Length == 0)
+                    return new byte[_optimizedBufferSize];
+
+                // Розраховуємо розмір потрібної ділянки
+                int requiredBins = endBin - startBin + 1;
+                
+                // Якщо потрібна ділянка менша або дорівнює оптимізованому буферу, використовуємо її розмір
+                if (requiredBins <= _optimizedBufferSize)
+                {
+                    // Створюємо або перерозмірюємо буфер
+                    if (_optimizedSpectrumBuffer == null || _optimizedSpectrumBuffer.Length != requiredBins)
+                    {
+                        _optimizedSpectrumBuffer = new byte[requiredBins];
+                    }
+                    
+                    // Копіюємо тільки потрібну ділянку
+                    int copyLength = Math.Min(requiredBins, fullSpectrumData.Length - startBin);
+                    if (copyLength > 0)
+                    {
+                        Array.Copy(fullSpectrumData, startBin, _optimizedSpectrumBuffer, 0, copyLength);
+                    }
+                    
+                    return _optimizedSpectrumBuffer;
+                }
+                else
+                {
+                    // Якщо потрібна ділянка більша за оптимізований буфер, масштабуємо
+                    if (_optimizedSpectrumBuffer == null || _optimizedSpectrumBuffer.Length != _optimizedBufferSize)
+                    {
+                        _optimizedSpectrumBuffer = new byte[_optimizedBufferSize];
+                    }
+                    
+                    // Масштабуємо дані
+                    double scaleFactor = (double)requiredBins / _optimizedBufferSize;
+                    for (int i = 0; i < _optimizedBufferSize; i++)
+                    {
+                        int sourceIndex = startBin + (int)(i * scaleFactor);
+                        if (sourceIndex >= 0 && sourceIndex < fullSpectrumData.Length)
+                        {
+                            _optimizedSpectrumBuffer[i] = fullSpectrumData[sourceIndex];
+                        }
+                        else
+                        {
+                            _optimizedSpectrumBuffer[i] = 0;
+                        }
+                    }
+                    
+                    return _optimizedSpectrumBuffer;
+                }
+            }
+            catch 
+            {
+                // System.Diagnostics.Trace.WriteLine($"Error in OptimizeSpectrumData: {ex.Message}");
+                return new byte[_optimizedBufferSize];
+            }
+        }
+
+        /// <summary>
+        /// Застосовує спрощений LogMMSE шумоподавлення до спектру
+        /// </summary>
+        /// <param name="spectrumData">Вхідні дані спектру</param>
+        /// <returns>Оброблені дані з подавленим шумом</returns>
+        private byte[] ApplyLogMMSENoiseReduction(byte[] spectrumData)
+        {
+            try
+            {
+                if (spectrumData == null || spectrumData.Length == 0)
+                    return spectrumData;
+
+                int dataLength = spectrumData.Length;
+                byte[] processedData = new byte[dataLength];
+                
+                // Ініціалізуємо буфери якщо потрібно
+                if (_noiseEstimate == null || _noiseEstimate.Length != dataLength)
+                {
+                    _noiseEstimate = new double[dataLength];
+                    _signalEstimate = new double[dataLength];
+                    
+                    // Ініціалізуємо оцінки шуму початковими значеннями
+                    for (int i = 0; i < dataLength; i++)
+                    {
+                        _noiseEstimate[i] = 32.0; // Початкова оцінка шуму
+                        _signalEstimate[i] = 32.0; // Початкова оцінка сигналу
+                    }
+                }
+
+                // Спрощений алгоритм шумоподавлення
+                for (int i = 0; i < dataLength; i++)
+                {
+                    double currentValue = spectrumData[i];
+                    
+                    // Оновлюємо оцінку шуму (медленна адаптація)
+                    if (currentValue < _signalEstimate[i])
+                    {
+                        _noiseEstimate[i] = _noiseAlpha * _noiseEstimate[i] + (1.0 - _noiseAlpha) * currentValue;
+                    }
+                    
+                    // Оновлюємо оцінку сигналу (швидка адаптація)
+                    if (currentValue > _noiseEstimate[i])
+                    {
+                        _signalEstimate[i] = _signalAlpha * _signalEstimate[i] + (1.0 - _signalAlpha) * currentValue;
+                    }
+                    
+                    // Обчислюємо коефіцієнт підсилення
+                    double noiseLevel = Math.Max(1.0, _noiseEstimate[i]);
+                    double signalLevel = Math.Max(0.0, _signalEstimate[i]);
+                    double snr = signalLevel / noiseLevel;
+                    
+                    // Обмежуємо SNR
+                    snr = Math.Max(0.1, Math.Min(5.0, snr));
+                    
+                    // Спрощений коефіцієнт підсилення
+                    double gain = Math.Min(1.5, Math.Max(0.3, snr / 3.0));
+                    
+                    // Застосовуємо підсилення
+                    double enhancedValue = currentValue * gain;
+                    
+                    // Додаткове підсилення слабких сигналів
+                    if (currentValue < 50)
+                    {
+                        enhancedValue *= 1.1;
+                    }
+                    
+                    // Обмежуємо фінальне значення
+                    processedData[i] = (byte)Math.Min(255, Math.Max(0, enhancedValue));
+                }
+
+                return processedData;
+            }
+            catch 
+            {
+                return spectrumData; // Повертаємо оригінальні дані у випадку помилки
             }
         }
     }

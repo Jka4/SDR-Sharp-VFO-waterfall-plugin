@@ -1,0 +1,11 @@
+C:\Users\PC\OneDrive\sdrplugins> dotnet build VFO_waterfall/SDRSharp.VFO_waterfall.csproj -c Release
+Restore complete (0.3s)
+  SDRSharp.VFO_waterfall failed with 6 error(s) (2.2s)
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(498,46): error CS0103: The name 'filterBins' does not exist in the current context
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(505,48): error CS0103: The name 'filterBins' does not exist in the current context
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(513,48): error CS0103: The name 'halfFilterBins' does not exist in the current context
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(514,46): error CS0103: The name 'halfFilterBins' does not exist in the current context
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(522,48): error CS0103: The name 'halfFilterBins' does not exist in the current context
+    C:\Users\PC\OneDrive\sdrplugins\VFO_waterfall\ControlPanel.cs(523,46): error CS0103: The name 'halfFilterBins' does not exist in the current context
+
+Build failed with 6 error(s) in 3.1s
