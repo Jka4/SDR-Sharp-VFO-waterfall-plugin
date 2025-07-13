@@ -1,2 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ArrayOfNotchFilterEntry xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" />
+<ArrayOfNotchFilterEntry xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <NotchFilterEntry>
+    <Attenuation>-160</Attenuation>
+    <FilterWidth>300</FilterWidth>
+    <Frequency>104207148</Frequency>
+  </NotchFilterEntry>
+  <NotchFilterEntry>
+    <Attenuation>-160</Attenuation>
+    <FilterWidth>300</FilterWidth>
+    <Frequency>104208621</Frequency>
+  </NotchFilterEntry>
+  <NotchFilterEntry>
+    <Attenuation>-160</Attenuation>
+    <FilterWidth>300</FilterWidth>
+    <Frequency>104213407</Frequency>
+  </NotchFilterEntry>
+  <NotchFilterEntry>
+    <Attenuation>-160</Attenuation>
+    <FilterWidth>300</FilterWidth>
+    <Frequency>104214634</Frequency>
+  </NotchFilterEntry>
+</ArrayOfNotchFilterEntry>
