@@ -57,7 +57,7 @@
             this.contrastTrackBar.TabIndex = 6;
             this.contrastTrackBar.TickFrequency = 10;
             this.contrastTrackBar.Value = 50;
-            this.contrastTrackBar.ValueChanged += new System.EventHandler(this.contrastTrackBar_ValueChanged);
+            // this.contrastTrackBar.ValueChanged += new System.EventHandler(this.contrastTrackBar_ValueChanged);
             // 
             // ControlPanel
             // 

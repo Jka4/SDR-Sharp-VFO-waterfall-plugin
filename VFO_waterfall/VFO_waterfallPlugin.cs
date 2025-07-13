@@ -4,14 +4,12 @@ using SDRSharp.Radio;
 
 namespace SDRSharp.VFO_waterfall
 {
-    public class VFO_waterfallPlugin : ISharpPlugin, ICanLazyLoadGui, ISupportStatus, IExtendedNameProvider
+    public class VFO_waterfallPlugin : ISharpPlugin, ICanLazyLoadGui, ISupportStatus
     {
         private ControlPanel _gui;
         private ISharpControl _control;
 
-        public string DisplayName => "VFO_waterfall Plugin";
-        
-        public string Category => "Misc";
+        public string DisplayName => "VFO Waterfall";
         
         public string MenuItemName => DisplayName;
         

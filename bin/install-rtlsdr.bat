@@ -12,7 +12,7 @@ if %errorlevel% equ 0 set zadig_url=v1.2.5/zadig_xp-2.2.exe
 httpget http://github.com/pbatard/libwdi/releases/download/%zadig_url% zadig.exe
 
 unzip -o tmp\Release.zip -d tmp
-move tmp\x86\rtlsdr.dll .
+move tmp\x64\rtlsdr.dll .
 
 rmdir tmp /S /Q
 
