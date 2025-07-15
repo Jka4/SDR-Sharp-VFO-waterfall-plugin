@@ -20,16 +20,8 @@ namespace SDRSharp.VFO_waterfall
         private long _currentVFOFrequency = 0;
         private long _centerFrequency = 0;
         private double _sampleRate = 0;
-        private int _fftSize = 65536;
-        private int _contrastValue = 100;
-        
-        // LogMMSE шумоподавлення
-        private double[] _noiseEstimate;
-        private double[] _signalEstimate;
-        private double _noiseAlpha = 0.98; // Збільшуємо для меншої інтенсивності
-        private double _signalAlpha = 0.8; // Збільшуємо для меншої інтенсивності
-        private bool _noiseReductionEnabled = false; // Відключаємо за замовчуванням для економії ресурсів
-        private int _noiseReductionCounter = 0; // Лічильник для зменшення частоти обробки
+        private int _fftSize = 131072; // 262144
+        // Видалено: private int _contrastValue = 100;
         
         // Буфер для оптимізованих даних спектру
         private byte[] _optimizedSpectrumBuffer;
@@ -37,6 +29,7 @@ namespace SDRSharp.VFO_waterfall
 
         // UI elements
         private System.Windows.Forms.Timer updateTimer;
+        private bool _contrastSliderInitialized = false;
 
         // Кеш для оптимізації оновлення частот
         private long _lastVFOFreq = 0;
@@ -53,31 +46,22 @@ namespace SDRSharp.VFO_waterfall
                 InitializeComponent();
                 
                 waterfallPictureBox.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
-                contrastTrackBar.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Right;
+                // Видалено: contrastTrackBar
                 
                 this.Resize += ControlPanel_Resize;
                 this.Paint += ControlPanel_Paint;
                 ControlPanel_Resize(this, EventArgs.Empty);
                 
                 updateTimer = new System.Windows.Forms.Timer();
-                updateTimer.Interval = 11; // Зменшуємо з 11 до 33ms (~30 FPS замість 90 FPS)
+                updateTimer.Interval = 11;
                 updateTimer.Tick += new System.EventHandler(updateTimer_Tick);
                 
                 updateTimer.Start();
                 _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
                 
-                contrastTrackBar.Minimum = 0;
-                contrastTrackBar.Maximum = 500;
-                contrastTrackBar.Value = _contrastValue; // Повертаємо нормальне значення
-                
-                // Правильна логіка для вертикального слайдера
-                contrastTrackBar.ValueChanged += (s, e) => {
-                    _contrastValue = contrastTrackBar.Value;
-                };
+                // Видалено: contrastTrackBar
                 
                 _optimizedSpectrumBuffer = new byte[_optimizedBufferSize];
-                _noiseEstimate = new double[_optimizedBufferSize];
-                _signalEstimate = new double[_optimizedBufferSize];
                 
                 UpdateFrequencyInfo();
             }
@@ -98,74 +82,31 @@ namespace SDRSharp.VFO_waterfall
 
         private void ControlPanel_Paint(object sender, PaintEventArgs e)
         {
-            int sliderWidth = contrastTrackBar.Width;
-            int legendX = contrastTrackBar.Left - 8;
-            int legendTop = contrastTrackBar.Top;
-            int legendBottom = contrastTrackBar.Bottom;
-            int legendHeight = contrastTrackBar.Height;
-            int tickCount = 8; // Збільшуємо кількість поділок
-            int minValue = contrastTrackBar.Minimum;
-            int maxValue = contrastTrackBar.Maximum;
-            
-            using (var g = e.Graphics)
-            using (var pen = new Pen(Color.LightGray, 1))
-            using (var font = new Font("Segoe UI", 7f))
-            using (var brush = new SolidBrush(Color.LightGray))
-            {
-                for (int i = 0; i < tickCount; i++)
-                {
-                    float t = (float)i / (tickCount - 1);
-                    int y = legendTop + (int)(t * (legendBottom - legendTop));
-                    g.DrawLine(pen, legendX, y, legendX + 6, y);
-                    
-                    // Показуємо значення для трьох діапазонів
-                    int value;
-                    if (t <= 0.4f) // Верхні 40% - слабке підсилення
-                    {
-                        value = (int)(t / 0.4f * 200);
-                    }
-                    else if (t <= 0.6f) // Центральні 20% - прийнятне підсилення
-                    {
-                        value = 200 + (int)((t - 0.4f) / 0.2f * 100);
-                    }
-                    else // Нижні 40% - сильне підсилення
-                    {
-                        value = 300 + (int)((t - 0.6f) / 0.4f * 200);
-                    }
-                    
-                    string label = value.ToString();
-                    g.DrawString(label, font, brush, legendX - 22, y - 7);
-                }
-            }
+            // Видалено: малювання легенди для слайдера контрасту
         }
 
         private void ControlPanel_Resize(object sender, EventArgs e)
         {
             try
             {
-                int sliderWidth = 25;
-                contrastTrackBar.Width = sliderWidth;
                 int leftOffset = 2;
                 int rightOffset = 1;
                 int w = this.Width;
                 int h = this.Height;
                 
-                contrastTrackBar.Location = new Point(w - sliderWidth - rightOffset, leftOffset);
-                contrastTrackBar.Height = h - 2 * leftOffset;
+                // Видалено: contrastTrackBar
                 
                 waterfallPictureBox.Location = new Point(leftOffset, leftOffset);
-                waterfallPictureBox.Size = new Size(w - sliderWidth - leftOffset - rightOffset, h - 2 * leftOffset);
+                waterfallPictureBox.Size = new Size(w - leftOffset - rightOffset, h - 2 * leftOffset);
                 if (waterfallPictureBox.Width > 0 && waterfallPictureBox.Height > 0)
                 {
                     _waterfallBitmap = new Bitmap(waterfallPictureBox.Width, waterfallPictureBox.Height);
                     waterfallPictureBox.Image = _waterfallBitmap;
                     
-                    _optimizedBufferSize = Math.Max(1280, Math.Min(10240, waterfallPictureBox.Width * 5)); // Зменшуємо множник з 10 до 5
+                    _optimizedBufferSize = Math.Max(1280, Math.Min(10240, waterfallPictureBox.Width * 5));
                     if (_optimizedSpectrumBuffer == null || _optimizedSpectrumBuffer.Length != _optimizedBufferSize)
                     {
                         _optimizedSpectrumBuffer = new byte[_optimizedBufferSize];
-                        _noiseEstimate = new double[_optimizedBufferSize];
-                        _signalEstimate = new double[_optimizedBufferSize];
                     }
                 }
             }
@@ -220,6 +161,15 @@ namespace SDRSharp.VFO_waterfall
 
         private void updateTimer_Tick(object sender, EventArgs e)
         {
+            // Встановлюємо слайдер контрасту на 40% лише один раз після повної ініціалізації
+            if (!_contrastSliderInitialized && contrastTrackBar != null && contrastTrackBar.Maximum > contrastTrackBar.Minimum)
+            {
+                int targetValue = (int)(contrastTrackBar.Maximum * 0.4);
+                if (targetValue < contrastTrackBar.Minimum) targetValue = contrastTrackBar.Minimum;
+                if (targetValue > contrastTrackBar.Maximum) targetValue = contrastTrackBar.Maximum;
+                contrastTrackBar.Value = targetValue;
+                _contrastSliderInitialized = true;
+            }
             try
             {
                 if (!_control.IsPlaying || _control.SourceName == null)
@@ -342,30 +292,35 @@ namespace SDRSharp.VFO_waterfall
                 byte[] optimizedData = OptimizeSpectrumData(spectrumData, startBin, endBin);
                 int optimizedDataLength = optimizedData.Length;
 
-                // Застосовуємо шумоподавлення
-                if (_noiseReductionEnabled && optimizedDataLength > 0)
+                // === Автоматичне підлаштування контрасту ===
+                // Визначаємо рівень шуму як медіану нижніх 25% значень
+                int[] sorted = optimizedData.Select(b => (int)b).OrderBy(v => v).ToArray();
+                int noiseCount = Math.Max(1, sorted.Length / 4);
+                double noiseLevel = sorted.Take(noiseCount).Average();
+                // Бажаний рівень шуму на шкалі (наприклад, 40% від 255)
+                double targetNoiseLevel = 255 * 0.4;
+                // Коефіцієнт підсилення
+                double gain = targetNoiseLevel / Math.Max(1, noiseLevel);
+                // Обмежуємо gain для стабільності
+                gain = Math.Max(0.5, Math.Min(5.0, gain));
+                // Синхронізуємо слайдер контрасту з автоконтрастом (40% від Maximum)
+                if (contrastTrackBar != null && contrastTrackBar.Maximum > contrastTrackBar.Minimum)
                 {
-                    // Оптимізація: Застосовуємо шумоподавлення тільки кожні 3 кадри
-                    _noiseReductionCounter++;
-                    if (_noiseReductionCounter >= 3)
-                    {
-                        try
-                        {
-                            byte[] processedData = ApplyLogMMSENoiseReduction(optimizedData);
-                            if (processedData != null && processedData.Length == optimizedDataLength)
-                            {
-                                optimizedData = processedData;
-                            }
-                        }
-                        catch
-                        {
-                        }
-                        _noiseReductionCounter = 0;
-                    }
+                    int targetValue = (int)(contrastTrackBar.Maximum * 0.4);
+                    if (targetValue < contrastTrackBar.Minimum) targetValue = contrastTrackBar.Minimum;
+                    if (targetValue > contrastTrackBar.Maximum) targetValue = contrastTrackBar.Maximum;
+                    if (contrastTrackBar.Value != targetValue) contrastTrackBar.Value = targetValue;
                 }
+                // Масштабуємо спектр
+                byte[] autoContrastData = new byte[optimizedDataLength];
+                for (int i = 0; i < optimizedDataLength; i++)
+                {
+                    int v = (int)(optimizedData[i] * gain);
+                    autoContrastData[i] = (byte)Math.Max(0, Math.Min(255, v));
+                }
+                // === Кінець автоконтрасту ===
 
                 // Малюємо оптимізовану смугу
-                // Оптимізація: Використовуємо LockBits для швидшого доступу до пікселів
                 var bitmapData = _waterfallBitmap.LockBits(
                     new Rectangle(0, 0, width, 1), 
                     System.Drawing.Imaging.ImageLockMode.WriteOnly, 
@@ -384,7 +339,7 @@ namespace SDRSharp.VFO_waterfall
                         Color c;
                         if (binIndex >= 0 && binIndex < optimizedDataLength)
                         {
-                            byte value = optimizedData[binIndex];
+                            byte value = autoContrastData[binIndex];
                             c = GetSpectrumColor(value);
                         }
                         else
@@ -485,7 +440,8 @@ namespace SDRSharp.VFO_waterfall
 
         private Color GetSpectrumColor(byte value)
         {
-            int adjustedValue = ApplyContrast(value);
+            // Видалено: ApplyContrast
+            int adjustedValue = value;
             
             if (adjustedValue < 64)
             {
@@ -508,34 +464,6 @@ namespace SDRSharp.VFO_waterfall
                 int green = 255 - ((adjustedValue - 192) * 4);
                 return Color.FromArgb(red, green, 0);
             }
-        }
-
-        private int ApplyContrast(byte value)
-        {
-            // Нова логіка: прийнятні значення (100-200) в центрі слайдера (40-60%)
-            // Верхня частина (0-40%): слабке підсилення
-            // Центр (40-60%): прийнятне підсилення  
-            // Нижня частина (60-100%): сильне підсилення
-            double gain;
-            
-            if (_contrastValue <= 200) // Верхні 40% слайдера
-            {
-                // Слабке підсилення: 0.3x до 1.0x
-                gain = 0.3 + (_contrastValue / 200.0) * 0.7;
-            }
-            else if (_contrastValue <= 300) // Центральні 20% слайдера
-            {
-                // Прийнятне підсилення: 1.0x до 1.5x
-                gain = 1.0 + ((_contrastValue - 200) / 100.0) * 0.5;
-            }
-            else // Нижні 40% слайдера
-            {
-                // Сильне підсилення: 1.5x до 3.0x
-                gain = 1.5 + ((_contrastValue - 300) / 200.0) * 1.5;
-            }
-            
-            int enhancedValue = (int)(value * gain);
-            return Math.Max(0, Math.Min(255, enhancedValue));
         }
 
         private void DrawSingleEdgeLine(int width, int height, int bin, int displayStartBin, int displayEndBin, Color color, int thickness = 1)
@@ -603,73 +531,6 @@ namespace SDRSharp.VFO_waterfall
             catch 
             {
                 return new byte[_optimizedBufferSize];
-            }
-        }
-
-        private byte[] ApplyLogMMSENoiseReduction(byte[] spectrumData)
-        {
-            try
-            {
-                if (spectrumData == null || spectrumData.Length == 0)
-                    return spectrumData;
-
-                int dataLength = spectrumData.Length;
-                byte[] processedData = new byte[dataLength];
-                
-                if (_noiseEstimate == null || _noiseEstimate.Length != dataLength)
-                {
-                    _noiseEstimate = new double[dataLength];
-                    _signalEstimate = new double[dataLength];
-                    
-                    for (int i = 0; i < dataLength; i++)
-                    {
-                        _noiseEstimate[i] = 32.0;
-                        _signalEstimate[i] = 32.0;
-                    }
-                }
-
-                // Оптимізація: Обробляємо кожен другий піксель для зменшення навантаження
-                for (int i = 0; i < dataLength; i += 2)
-                {
-                    double currentValue = spectrumData[i];
-                    
-                    // Спрощений алгоритм шумоподавлення
-                    if (currentValue < _signalEstimate[i])
-                    {
-                        _noiseEstimate[i] = _noiseAlpha * _noiseEstimate[i] + (1.0 - _noiseAlpha) * currentValue;
-                    }
-                    
-                    if (currentValue > _noiseEstimate[i])
-                    {
-                        _signalEstimate[i] = _signalAlpha * _signalEstimate[i] + (1.0 - _signalAlpha) * currentValue;
-                    }
-                    
-                    // Спрощений коефіцієнт підсилення
-                    double noiseLevel = Math.Max(1.0, _noiseEstimate[i]);
-                    double signalLevel = Math.Max(0.0, _signalEstimate[i]);
-                    double snr = signalLevel / noiseLevel;
-                    
-                    // Обмежуємо SNR для стабільності
-                    snr = Math.Max(0.5, Math.Min(3.0, snr));
-                    
-                    // Спрощений коефіцієнт підсилення
-                    double gain = Math.Min(1.2, Math.Max(0.5, snr / 2.0));
-                    
-                    double enhancedValue = currentValue * gain;
-                    processedData[i] = (byte)Math.Min(255, Math.Max(0, enhancedValue));
-                    
-                    // Копіюємо наступний піксель без обробки для швидкості
-                    if (i + 1 < dataLength)
-                    {
-                        processedData[i + 1] = spectrumData[i + 1];
-                    }
-                }
-
-                return processedData;
-            }
-            catch 
-            {
-                return spectrumData;
             }
         }
     }

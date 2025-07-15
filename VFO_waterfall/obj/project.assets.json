@@ -3144,19 +3144,19 @@
     ]
   },
   "packageFolders": {
-    "/Users/_pc/.nuget/packages/": {}
+    "/Users/_PC/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/_pc/Library/CloudStorage/OneDrive-Personal/sdrplugins/VFO_waterfall/SDRSharp.VFO_waterfall.csproj",
+      "projectUniqueName": "/Users/_PC/CODE/GItHub/sdrplugins/VFO_waterfall/SDRSharp.VFO_waterfall.csproj",
       "projectName": "SDRSharp.VFO_waterfall",
-      "projectPath": "/Users/_pc/Library/CloudStorage/OneDrive-Personal/sdrplugins/VFO_waterfall/SDRSharp.VFO_waterfall.csproj",
-      "packagesPath": "/Users/_pc/.nuget/packages/",
-      "outputPath": "/Users/_pc/Library/CloudStorage/OneDrive-Personal/sdrplugins/VFO_waterfall/obj/",
+      "projectPath": "/Users/_PC/CODE/GItHub/sdrplugins/VFO_waterfall/SDRSharp.VFO_waterfall.csproj",
+      "packagesPath": "/Users/_PC/.nuget/packages/",
+      "outputPath": "/Users/_PC/CODE/GItHub/sdrplugins/VFO_waterfall/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/_pc/.nuget/NuGet/NuGet.Config"
+        "/Users/_PC/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0-windows"
@@ -3180,7 +3180,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.200"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net9.0-windows7.0": {
@@ -3209,7 +3209,7 @@
         "downloadDependencies": [
           {
             "name": "Microsoft.WindowsDesktop.App.Ref",
-            "version": "[9.0.4, 9.0.4]"
+            "version": "[9.0.7, 9.0.7]"
           }
         ],
         "frameworkReferences": {
@@ -3220,7 +3220,7 @@
             "privateAssets": "none"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.203/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/9.0.302/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

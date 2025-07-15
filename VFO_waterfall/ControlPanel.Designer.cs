@@ -48,15 +48,15 @@
             // 
             this.contrastTrackBar.Anchor = System.Windows.Forms.AnchorStyles.None;
             this.contrastTrackBar.Location = new System.Drawing.Point(555, 5);
-            this.contrastTrackBar.Maximum = 100;
             this.contrastTrackBar.Minimum = 1;
+            this.contrastTrackBar.Maximum = 100;
             this.contrastTrackBar.Name = "contrastTrackBar";
             this.contrastTrackBar.Orientation = System.Windows.Forms.Orientation.Vertical;
             this.contrastTrackBar.Size = new System.Drawing.Size(45, 340);
             this.contrastTrackBar.MinimumSize = new System.Drawing.Size(20, 50);
             this.contrastTrackBar.TabIndex = 6;
             this.contrastTrackBar.TickFrequency = 10;
-            this.contrastTrackBar.Value = 50;
+            this.contrastTrackBar.Value = 40;
             // this.contrastTrackBar.ValueChanged += new System.EventHandler(this.contrastTrackBar_ValueChanged);
             // 
             // ControlPanel
